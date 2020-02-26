@@ -1,0 +1,39 @@
+// With spark-shell in cloudXlab
+spark-shell
+
+// Get access to the file located in HDFS, and create a RDD
+var logs = sc.textFile("/data/spark/project/access/access.log.5.gz")
+
+// Check what's in the RDD by using take 10
+logs.take(10)
+
+// Create a functioin to check if a line has valid IP address.
+// def containsIPnew(line:String):Boolean = return line matches "^([0-9]{1,3}\\.){3}([0-9]+).*$"
+
+def containsIP(line:String):Boolean = return line matches "^([0-9\\.]+) .*$"
+
+// Filter records in logs RDD using this function.
+var iplogs = logs.filter(containsIP)
+
+iplogs.take(10)
+
+// Extract only IP with a function.
+def extractIP(line:String):(String) = {
+    val pattern = "^([0-9\\.]+) .*$".r
+    val pattern(ip:String) = line
+    return (ip.toString)
+}
+var ips = iplogs.map(line => (extractIP(line), 1))
+
+// Count the IPs with reduce function
+var ipcounts = ips.reduceByKey((a,b) => (a+b))
+
+// Sort the count result in descending order
+var ipcountsSorted = ipcounts.sortBy(f => f._2, false)
+
+// Show the top 10 IPs
+ipcountsSorted.take(10)
+
+// Save the result to HDFS using saveAsTextFile()
+ipcountsSorted.saveAsTextFile("SparkLog")
+
