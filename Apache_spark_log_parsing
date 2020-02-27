@@ -1,0 +1,51 @@
+spark-shell
+
+case class LogRecord( host:String, timestamp:String, url:String, httpCode: Int)
+
+val pattern = """^(\S+) \S+ \S+ \[([\w:/]+ \S\d{4})\] "\S+ ([\w./-]+) \S+" (\d{3}) \S+$""".r 
+
+def parseLogLine(line:String):
+    LogRecord = {
+             val res = pattern.findFirstMatchIn(line)
+             if (res.isEmpty)
+             {   
+                 println("Rejected Log Line:" + line)
+                 LogRecord("Empty", "", "", -1)
+              }
+              else
+              {  
+                 val m = res.get
+                 LogRecord(m.group(1), m.group(2), m.group(3), m.group(4).toInt)
+               }
+          }
+
+
+var line1 = """uplherc.upl.com - - [01/Aug/1995:00:00:08 -0400] "GET /images/ksclogo-medium.gif HTTP/1.0" 304 0"""
+var line2 = """133.43.96.45 - - [01/Aug/1995:00:00:16 -0400] "GET /shuttle/missions/sts-69/mission-sts-69.html HTTP/1.0" 200 10566"""
+var line3 = """uplherc.upl.com - - [01/Aug/1995:00:00:07 -0400] "GET / HTTP/1.0" 304 0"""
+
+var logs = sc.textFile("/data/spark/project/NASA_access_log_Aug95.gz")
+
+var parseLogs = logs.map(parseLogLine)
+
+var logDf = parseLogs.toDF()   
+
+logDf.printSchema    
+
+logDf.createOrReplaceTempView("nasalog")
+
+val output = spark.sql("select * from nasalog")
+
+output.creatOrReplaceTempView("nasa_log")
+spark.sql("cache TABLE nasa_log")
+
+spark.sql("select url, count(*) as req_cnt from nasa_log where upper(url) like '%HTML%' group by url order by req_cnt desc limit 10").show
+
+spark.sql("select host, count(*) as req_cnt from nasa_log group by host order by req_cnt desc limit 5").show
+
+spark.sql("select substr(timestamp, 1, 14) as timeFrame, count(*) as req_cnt from nasa_log group by substr(timestamp, 1, 14) order by req_cnt desc limit 5").show
+
+spark.sql("select substr(timestamp, 1, 14) as timeFrame, count(*) as req_cnt from nasa_log group by substr(timestamp, 1, 14) order by req_cnt limit 5").show
+
+spark.sql("select distinct httpCode as HTTP_code, count(*) as cnt from nasa_log group by httpCode order by cnt desc").show
+
